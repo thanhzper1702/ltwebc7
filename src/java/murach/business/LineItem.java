@@ -23,6 +23,10 @@ public class LineItem implements Serializable {
         this.quantity = quantity;
     }
 
+    public void increaseQuantity(int quantity) {
+        this.quantity += quantity;
+    }
+
     public int getQuantity() {
         return quantity;
     }

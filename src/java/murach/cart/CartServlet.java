@@ -7,29 +7,33 @@ import murach.business.Product;
 import java.io.*;
 import javax.servlet.*;
 import javax.servlet.http.*;
-
+import java.util.ArrayList;
 
 public class CartServlet extends HttpServlet {
 
     @Override
-    protected void doPost(HttpServletRequest request,
-            HttpServletResponse response)
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
+        doPost(request, response);
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
         String url = "/index.jsp";
         ServletContext sc = getServletContext();
-        
-        // get current action
+
         String action = request.getParameter("action");
         if (action == null) {
-            action = "cart";  // default action
+            action = "cart";
         }
 
-        // perform action and set URL to appropriate page
         if (action.equals("shop")) {
-            url = "/index.jsp";    // the "index" page
-        } 
-        else if (action.equals("cart")) {
+            url = "/index.jsp";
+        } else if (action.equals("checkout")) {
+            url = "/checkout.jsp";
+        } else {
             String productCode = request.getParameter("productCode");
             String quantityString = request.getParameter("quantity");
 
@@ -39,38 +43,67 @@ public class CartServlet extends HttpServlet {
                 cart = new Cart();
             }
 
-            //if the user enters a negative or invalid quantity,
-            //the quantity is automatically reset to 1.
-            int quantity;
+            int quantity = 1;
             try {
-                quantity = Integer.parseInt(quantityString);
-                if (quantity < 0) {
-                    quantity = 1;
+                if (quantityString != null && !quantityString.trim().isEmpty()) {
+                    quantity = Integer.parseInt(quantityString);
+                    if (quantity < 0) {
+                        quantity = 1;
+                    }
                 }
             } catch (NumberFormatException nfe) {
                 quantity = 1;
             }
 
-            String path = sc.getRealPath("/WEB-INF/products.txt");
-            Product product = ProductIO.getProduct(productCode, path);
+            if (productCode != null && !productCode.trim().isEmpty()) {
+                String path = sc.getRealPath("/WEB-INF/products.txt");
+                Product product = ProductIO.getProduct(productCode, path);
 
-            LineItem lineItem = new LineItem();
-            lineItem.setProduct(product);
-            lineItem.setQuantity(quantity);
-            if (quantity > 0) {
-                cart.addItem(lineItem);
-            } else if (quantity == 0) {
-                cart.removeItem(lineItem);
+                System.out.println("=== DEBUG CART ===");
+                System.out.println("Path: " + path);
+                System.out.println("ProductCode: " + productCode);
+                System.out.println("Product: " + product);
+
+                // CHỈ XỬ LÝ KHI PRODUCT TÌM THẤY HỢP LỆ
+                if (product != null) {
+                    ArrayList<LineItem> items = cart.getItems();
+                    boolean found = false;
+
+                    if (items != null) {
+                        for (LineItem item : items) {
+                            if (item.getProduct() != null &&
+                                    item.getProduct().getCode().equalsIgnoreCase(product.getCode())) {
+                                found = true;
+                                if (quantity > 0) {
+                                    if (action.equals("cart")) {
+                                        item.setQuantity(quantity);
+                                    } else if (action.equals("add")) {
+                                        item.increaseQuantity(quantity);
+                                    }
+                                } else {
+                                    cart.removeItem(item);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found && quantity > 0) {
+                        LineItem item = new LineItem();
+                        item.setProduct(product);
+                        item.setQuantity(quantity);
+                        cart.addItem(item);
+                    }
+                } else {
+                    System.err.println("WARNING: Khong tim thay thong tin san pham trong products.txt!");
+                }
+
+                session.setAttribute("cart", cart);
             }
 
-            session.setAttribute("cart", cart);
             url = "/cart.jsp";
         }
-        else if (action.equals("checkout")) {
-            url = "/checkout.jsp";
-        }
 
-        sc.getRequestDispatcher(url)
-                .forward(request, response);
+        sc.getRequestDispatcher(url).forward(request, response);
     }
 }
